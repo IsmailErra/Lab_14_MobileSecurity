@@ -1,30 +1,62 @@
 # Lab_14_MobileSecurity
-# LAB-14-Bypass-Root-Detection-sur-Android-Techniques-Dynamiques-avec-Frida-Objection-et-Hooks-Natif
-## Étape 1 — Préparer l’
-![](./images/047e7016-2c28-4cce-995b-5ce8860024bc)
-![](./images/7c230d07-e269-43ef-84dd-5ce5112472b4)
-![](./images/a67a9857-ef39-4c57-ad5b-8e0e62390f3b)
-## Étape 2 — Démarrer frida-server sur l’appareil
-![](./images/60ce9960-4666-49c8-8390-4440e81a0f1e)
-![](./images/e74acdd8-be0a-4d0f-9312-85fbf5dc30d8)
-![](./images/e7edca9a-ccb3-48a1-b221-f58db4ee763d)
-![](./images/23760fff-ec33-4857-886e-026d5cf2bc77)
-![](./images/3d08cd6c-6583-44b1-bf5d-90282d681ccb)
-## Étape 3 — Frida: comprendre en 10 minutes
-![](./images/3464e1fb-8687-4dbd-8469-ed321e799471)
-![](./images/3cbb2d3b-b16c-4e61-a8c8-05f0afd530f5)
-## Étape 4 — Bypass de la détection de root avec Frida
-![](./images/d30a6b64-1e4c-4a0d-9da4-9aef4b017bcc)
-![](./images/a9934350-cce2-4b8d-a512-d166f2528b76)
-## Étape 5 — Faire la même chose plus facilement avec Objection
-![](./images/d2e4f7f2-cd6e-4ae4-9b27-9abc85321bef)
-![](./images/ff50ed70-221d-47bc-aa61-3fa4671118e2)
-## Étape 6 — Medusa
-![](./images/bb13b96b-477e-42d4-82ad-8785659ad06b)
-![](./images/99633242-cc3b-43bb-a986-00cdfd425c07)
-## Étape 7 — Quand préférer Magisk
-Magisk est utilisé lorsqu’on veut masquer le root directement au niveau du système Android, 
-contrairement à Frida, Objection ou Medusa qui agissent uniquement à l’intérieur de l’application pendant son exécution. 
-Il devient particulièrement utile lorsque les applications utilisent des protections avancées comme Play Integrity ou SafetyNet, ou lorsqu’elles vérifient des paramètres profonds du système
-(propriétés Android, bootloader, environnement root). L’avantage de Magisk est qu’il permet un masquage global du root pour toutes les applications, sans avoir besoin d’injecter des scripts à chaque lancement. Cependant, 
-certaines protections très fortes basées sur du matériel ou des vérifications strictes de type “strong integrity” restent difficiles, voire impossibles, à contourner uniquement avec cette approche.
+
+Ce document décrit les étapes de résolution du Lab 14 pour contourner la détection de root sur Android à l'aide de Frida (Java et natif) et Objection.
+
+## Étape 1 : Vérification de l'environnement
+Nous vérifions la présence et les versions de Python, pip, et du client Frida installé sur la machine de test.
+
+```powershell
+python --version
+pip --version
+frida --version
+```
+
+![Vérification de l'environnement](screenshots/1_frida_version.png)
+
+## Étape 2 : Vérification de la connexion ADB
+Nous listons les appareils connectés pour s'assurer que l'émulateur est correctement reconnu par ADB.
+
+```powershell
+adb devices
+```
+
+![Connexion ADB](screenshots/2_adb_devices.png)
+
+## Étape 3 : Démarrage du serveur Frida
+Après transfert de `frida-server` (version compatible 17.9.8) dans `/data/local/tmp/` et attribution des permissions d'exécution, nous le démarrons en arrière-plan et validons le fonctionnement avec `frida-ps`.
+
+```powershell
+adb push frida-server /data/local/tmp/
+adb shell chmod 755 /data/local/tmp/frida-server
+adb shell "nohup /data/local/tmp/frida-server -l 0.0.0.0 >/dev/null 2>&1 &"
+frida-ps -Uai
+```
+
+![Démarrage de frida-server](screenshots/3_frida_server.png)
+
+## Étape 4 : Contournement avec Frida (Scripts Basic Java & Native)
+Nous injectons deux scripts pour contourner la détection de root :
+1. `bypass_root_basic.js` : modifie `Build.TAGS`, désactive RootBeer et surcharge `File.exists` ainsi que `Runtime.exec` pour empêcher la détection de binaires comme `su`.
+2. `bypass_native.js` : intercepte les appels système natifs de la `libc.so` (`open`, `openat`, `access`, `stat`, `lstat`) tentant d'accéder aux fichiers suspects.
+
+```powershell
+frida -U -f owasp.mstg.uncrackable2 -l bypass_root_basic.js -l bypass_native.js
+```
+
+![Contournement Frida](screenshots/4_frida_bypass.png)
+
+## Étape 5 : Contournement automatisé avec Objection
+Comme alternative, nous attachons **Objection** au processus en cours (via son PID) et exécutons la commande intégrée pour désactiver la détection de root.
+
+```powershell
+# Identifier le PID
+frida-ps -U
+
+# Attacher objection au PID correspondant
+objection -g <PID> explore
+
+# Dans le prompt objection
+android root disable
+```
+
+![Contournement Objection](screenshots/5_objection_bypass.png)
